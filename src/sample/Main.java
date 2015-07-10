@@ -3,46 +3,68 @@ package sample;
 import javafx.application.Application;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
-import javafx.concurrent.Task;
+import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ListView;
 import javafx.scene.control.ProgressIndicator;
+import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
-import java.sql.*;
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
+/**
+ * This code is an example inspired by a piece of code found in github
+ * <p>
+ * Happy Thanks to Jewelsea
+ * https://gist.github.com/jewelsea
+ */
 public class Main extends Application {
-    private static final Logger logger = Logger.getLogger(Main.class.getName());
-    private static final String[] SAMPLE_NAME_DATA = {"John", "Jill", "Jack", "Jerry"};
+
+    private static final Logger LOG = Logger.getLogger(Main.class.getName());
+
+    @FXML
+    VBox layout;
+    @FXML
+    VBox layoutCallableFuture;
+    @FXML
+    VBox layoutPollTake;
 
     public static void main(String[] args) {
         launch(args);
     }
-
-    // executes database operations concurrent to JavaFX operations.
-    private ExecutorService databaseExecutor;
-
-    // the future's data will be available once the database setup has been complete.
-    private Future databaseSetupFuture;
 
     // initialize the program.
     // setting the database executor thread pool size to 1 ensures
     // only one database command is executed at any one time.
     @Override
     public void init() throws Exception {
-        databaseExecutor = Executors.newFixedThreadPool(1, new DatabaseThreadFactory()
-        );
-
+        databaseExecutor = Executors.newFixedThreadPool(3, new DBThreadFactory());
         // run the database setup in parallel to the JavaFX application setup.
         DBSetupTask setup = new DBSetupTask();
         databaseSetupFuture = databaseExecutor.submit(setup);
+    }
+
+    // start showing the UI.
+    @Override
+    public void start(Stage stage) throws InterruptedException, ExecutionException, IOException, SQLException {
+        GridPane root = FXMLLoader.load(getClass().getResource("sample.fxml"));
+
+        initOldTaskManner(root); // example given by Jewelsea
+        initOldCallableManner(root); // Future+Callable = blocking javafx UI thread
+        initOldCompletionServiceManner(root); // poll/take
+
+//        initNewTaskManner(root); // Completable Future
+
+        Scene scene = new Scene(root, 1280, 768);
+        stage.setScene(scene);
+        stage.show();
     }
 
     // shutdown the program.
@@ -50,168 +72,141 @@ public class Main extends Application {
     public void stop() throws Exception {
         databaseExecutor.shutdown();
         if (!databaseExecutor.awaitTermination(3, TimeUnit.SECONDS)) {
-            logger.info("Database execution thread timed out after 3 seconds rather than shutting down cleanly.");
+            LOG.info("Database execution thread timed out after 3 seconds rather than shutting down cleanly.");
         }
     }
 
-    // start showing the UI.
-    @Override
-    public void start(Stage stage) throws InterruptedException, ExecutionException {
+    //-------------------------------
+    //
+    //-------------------------------
+
+    private void initOldCompletionServiceManner(GridPane root) throws SQLException {
+        final ListView<String> listView = new ListView<>();
+        final ProgressIndicator databaseActivityIndicator = new ProgressIndicator();
+        databaseActivityIndicator.setVisible(false);
+        final Button clearNameList = new Button("Clear");
+        clearNameList.setOnAction(event -> listView.getItems().clear());
+        final Button fetchNames = new Button("Fetch names Callable");
+        fetchNames.setOnAction(event -> {
+                    CompletionService<ObservableList<String>> completionService = new ExecutorCompletionService<>(databaseExecutor);
+                    // http://markusjais.com/understanding-java-util-concurrent-completionservice/
+//                    ObservableList<Callable<String>> callables =
+                    completionService.submit(() -> FetchNames.fetch());
+                }
+        );
+
+        // try to find vbox layout
+        for (int i = 0; i < root.getChildren().size(); i++) {
+            String id = root.getChildren().get(i).getId();
+            if (id != null && id.equalsIgnoreCase("layoutPollTake")) {
+                layoutPollTake = (VBox) root.getChildren().get(i);
+            }
+        }
+        layoutPollTake.setStyle("-fx-background-color: lightskyblue; -fx-padding: 15;");
+        layoutPollTake.getChildren().setAll(new HBox(10, fetchNames, clearNameList, databaseActivityIndicator), listView);
+        layoutPollTake.setPrefHeight(100);
+    }
+
+    private static ObservableList<Callable<String>> createCallableList() {
+        ObservableList<Callable<String>> callables = FXCollections.emptyObservableList();
+        for (int i = 0; i < 10; i++) {
+            callables.add(null); // implement this below;
+        }
+        return callables;
+    }
+
+    /*public class LongRunningTask implements Callable<String> {
+
+        public String call() {
+            // do stuff and return some String
+            try {
+                Thread.sleep(Math.abs(new Random().nextLong() % 5000));
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return Thread.currentThread().getName();
+        }
+    }*/
+    //-------------------------------
+    // Future + Callable - blocking the JavaFX UI thread
+    //-------------------------------
+
+    private void initOldCallableManner(GridPane root) {
+        final ListView<String> listView = new ListView<>();
+        final ProgressIndicator databaseActivityIndicator = new ProgressIndicator();
+        databaseActivityIndicator.setVisible(false);
+        final Button clearNameList = new Button("Clear");
+        clearNameList.setOnAction(event -> listView.getItems().clear());
+        final Button fetchNames = new Button("Fetch names Callable");
+        fetchNames.setOnAction(event -> {
+                    FetchNamesCallable callable = new FetchNamesCallable();
+                    Future<ObservableList<String>> future = databaseExecutor.submit(callable);
+                    try {
+                        listView.setItems(future.get());
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    } catch (ExecutionException e) {
+                        e.printStackTrace();
+                    }
+                }
+        );
+
+        // try to find vbox layout
+        for (int i = 0; i < root.getChildren().size(); i++) {
+            String id = root.getChildren().get(i).getId();
+            if (id != null && id.equalsIgnoreCase("layoutCallableFuture")) {
+                layoutCallableFuture = (VBox) root.getChildren().get(i);
+            }
+        }
+        layoutCallableFuture.setStyle("-fx-background-color: sandybrown; -fx-padding: 15;");
+        layoutCallableFuture.getChildren().setAll(new HBox(10, fetchNames, clearNameList, databaseActivityIndicator), listView);
+        layoutCallableFuture.setPrefHeight(100);
+    }
+
+
+    //-------------------------------
+    // old Task
+    //-------------------------------
+
+    // executes database operations concurrent to JavaFX operations.
+    private ExecutorService databaseExecutor;
+    // the future's data will be available once the database setup has been complete.
+    private Future databaseSetupFuture;
+
+    private void initOldTaskManner(GridPane root) throws ExecutionException, InterruptedException {
         // wait for the database setup to complete cleanly before showing any UI.
         // a real app might use a preloader or show a splash screen if this
         // was to take a long time rather than just pausing the JavaFX application thread.
         databaseSetupFuture.get();
 
-        final ListView<String> nameView = new ListView<>();
+        final ListView<String> listView = new ListView<>();
         final ProgressIndicator databaseActivityIndicator = new ProgressIndicator();
         databaseActivityIndicator.setVisible(false);
-
-        final Button fetchNames = new Button("Fetch names from the database");
-        fetchNames.setOnAction(event ->
-                        fetchNamesFromDatabaseToListView(
-                                fetchNames,
-                                databaseActivityIndicator,
-                                nameView
-                        )
-        );
-
-        final Button clearNameList = new Button("Clear the name list");
-        clearNameList.setOnAction(event -> nameView.getItems().clear());
-
-        VBox layout = new VBox(10);
-        layout.setStyle("-fx-background-color: cornsilk; -fx-padding: 15;");
-        layout.getChildren().setAll(
-                new HBox(10,
-                        fetchNames,
-                        clearNameList,
-                        databaseActivityIndicator
-                ),
-                nameView
-        );
-        layout.setPrefHeight(200);
-
-        stage.setScene(new Scene(layout));
-        stage.show();
-    }
-
-    private void fetchNamesFromDatabaseToListView(
-            final Button triggerButton,
-            final ProgressIndicator databaseActivityIndicator,
-            final ListView<String> listView) {
-        final FetchNamesTask fetchNamesTask = new FetchNamesTask();
-
-        triggerButton.disableProperty().bind(
-                fetchNamesTask.runningProperty()
-        );
-        databaseActivityIndicator.visibleProperty().bind(
-                fetchNamesTask.runningProperty()
-        );
-        databaseActivityIndicator.progressProperty().bind(
-                fetchNamesTask.progressProperty()
-        );
-
-        fetchNamesTask.setOnSucceeded(t ->
-                        listView.setItems(fetchNamesTask.getValue())
-        );
-
-        databaseExecutor.submit(fetchNamesTask);
-    }
-
-    abstract class DBTask<T> extends Task<T> {
-        DBTask() {
-            setOnFailed(t -> logger.log(Level.SEVERE, null, getException()));
-        }
-    }
-
-    class FetchNamesTask extends DBTask<ObservableList<String>> {
-        @Override
-        protected ObservableList<String> call() throws Exception {
-            // artificially pause for a while to simulate a long running database connection.
-            Thread.sleep(1000);
-
-            try (Connection con = getConnection()) {
-                return fetchNames(con);
-            }
-        }
-
-        private ObservableList<String> fetchNames(Connection con) throws SQLException {
-            logger.info("Fetching names from database");
-            ObservableList<String> names = FXCollections.observableArrayList();
-
-            Statement st = con.createStatement();
-            ResultSet rs = st.executeQuery("select name from category");
-            while (rs.next()) {
-                names.add(rs.getString("name"));
-            }
-
-            logger.info("Found " + names.size() + " names");
-
-            return names;
-        }
-    }
-
-    class DBSetupTask extends DBTask {
-        @Override
-        protected Void call() throws Exception {
-            try (Connection con = getConnection()) {
-                if (!schemaExists(con)) {
-                    createSchema(con);
-                    populateDatabase(con);
+        final Button clearNameList = new Button("Clear");
+        clearNameList.setOnAction(event -> listView.getItems().clear());
+        final Button fetchNames = new Button("Fetch old Future Task");
+        fetchNames.setOnAction(event -> {
+                    final FetchNamesTask fetchNamesTask = new FetchNamesTask();
+                    fetchNames.disableProperty().bind(fetchNamesTask.runningProperty());
+                    clearNameList.disableProperty().bind(fetchNamesTask.runningProperty());
+                    databaseActivityIndicator.visibleProperty().bind(fetchNamesTask.runningProperty());
+                    databaseActivityIndicator.progressProperty().bind(fetchNamesTask.progressProperty());
+                    fetchNamesTask.setOnSucceeded(t -> listView.setItems(fetchNamesTask.getValue()));
+                    databaseExecutor.submit(fetchNamesTask);
                 }
+        );
+
+        // try to find vbox layout
+        for (int i = 0; i < root.getChildren().size(); i++) {
+            String id = root.getChildren().get(i).getId();
+            if (id != null && id.equalsIgnoreCase("layout")) {
+                layout = (VBox) root.getChildren().get(i);
             }
-
-            return null;
         }
-
-        private boolean schemaExists(Connection con) {
-            logger.info("Checking for Schema existence");
-            try {
-                Statement st = con.createStatement();
-                st.executeQuery("select count(*) from city");
-                logger.info("Schema exists");
-            } catch (SQLException ex) {
-                logger.info("Existing DB not found will create a new one");
-                return false;
-            }
-
-            return true;
-        }
-
-        private void createSchema(Connection con) throws SQLException {
-            logger.info("Creating schema");
-           /* Statement st = con.createStatement();
-            String table = "create table employee(id integer, name varchar(64))";
-            st.executeUpdate(table);*/
-            logger.info("Created schema");
-        }
-
-        private void populateDatabase(Connection con) throws SQLException {
-            logger.info("Populating database");
-            /*Statement st = con.createStatement();
-            for (String name: SAMPLE_NAME_DATA) {
-                st.executeUpdate("insert into employee values(1,'" + name + "')");
-            }*/
-            logger.info("Populated database");
-        }
+        layout.setStyle("-fx-background-color: cornsilk; -fx-padding: 15;");
+        layout.getChildren().setAll(new HBox(10, fetchNames, clearNameList, databaseActivityIndicator), listView);
+        layout.setPrefHeight(100);
     }
 
-    private Connection getConnection() throws ClassNotFoundException, SQLException {
-        logger.info("Getting a database connection");
-//        Class.forName("org.h2.Driver");
-//          return DriverManager.getConnection("jdbc:h2:~/test", "sa", "");
-        Class.forName("com.mysql.jdbc.Driver");
-        return DriverManager.getConnection("jdbc:mysql://neosdbdev:3306/neos", "root", "eurovision");
-    }
 
-    static class DatabaseThreadFactory implements ThreadFactory {
-        static final AtomicInteger poolNumber = new AtomicInteger(1);
-
-        @Override
-        public Thread newThread(Runnable runnable) {
-            Thread thread = new Thread(runnable, "Database-Connection-" + poolNumber.getAndIncrement() + "-thread");
-            thread.setDaemon(true);
-
-            return thread;
-        }
-    }
 }
