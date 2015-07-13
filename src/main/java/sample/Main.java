@@ -22,8 +22,7 @@ import java.util.logging.Logger;
 /**
  * This code is an example inspired by a piece of code found in github
  * <p>
- * Happy Thanks to Jewelsea
- * https://gist.github.com/jewelsea
+ * Happy Thanks to Jewelsea https://gist.github.com/jewelsea
  */
 public class Main extends Application {
 
@@ -56,11 +55,9 @@ public class Main extends Application {
     public void start(Stage stage) throws InterruptedException, ExecutionException, IOException, SQLException {
         GridPane root = FXMLLoader.load(getClass().getResource("sample.fxml"));
 
-        initOldTaskManner(root); // example given by Jewelsea
+        initNewTaskManner(root); // example given by Jewelsea
         initOldCallableManner(root); // Future+Callable = blocking javafx UI thread
         initOldCompletionServiceManner(root); // poll/take
-
-//        initNewTaskManner(root); // Completable Future
 
         Scene scene = new Scene(root, 1280, 768);
         stage.setScene(scene);
@@ -89,7 +86,7 @@ public class Main extends Application {
         final Button fetchNames = new Button("Fetch names Callable");
         fetchNames.setOnAction(event -> {
                     CompletionService<ObservableList<String>> completionService = new ExecutorCompletionService<>(databaseExecutor);
-                    Future<ObservableList<String>> submit = completionService.submit(() -> FetchNames.fetch());
+                    Future<ObservableList<String>> submit = completionService.submit(() -> new FetchNames().call());
                     try {
                         listView.setItems(submit.get());
                     } catch (InterruptedException e) {
@@ -114,18 +111,6 @@ public class Main extends Application {
         return callables;
     }
 
-    /*public class LongRunningTask implements Callable<String> {
-
-        public String call() {
-            // do stuff and return some String
-            try {
-                Thread.sleep(Math.abs(new Random().nextLong() % 5000));
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            return Thread.currentThread().getName();
-        }
-    }*/
     //-------------------------------
     // Future + Callable - blocking the JavaFX UI thread
     //-------------------------------
@@ -150,13 +135,7 @@ public class Main extends Application {
                 }
         );
 
-        // try to find vbox layout
-        for (int i = 0; i < root.getChildren().size(); i++) {
-            String id = root.getChildren().get(i).getId();
-            if (id != null && id.equalsIgnoreCase("layoutCallableFuture")) {
-                layoutCallableFuture = (VBox) root.getChildren().get(i);
-            }
-        }
+        layoutCallableFuture = getVBox(root, "layoutCallableFuture");
         layoutCallableFuture.setStyle("-fx-background-color: sandybrown; -fx-padding: 15;");
         layoutCallableFuture.getChildren().setAll(new HBox(10, fetchNames, clearNameList, databaseActivityIndicator), listView);
         layoutCallableFuture.setPrefHeight(100);
@@ -172,7 +151,7 @@ public class Main extends Application {
     // the future's data will be available once the database setup has been complete.
     private Future databaseSetupFuture;
 
-    private void initOldTaskManner(GridPane root) throws ExecutionException, InterruptedException {
+    private void initNewTaskManner(GridPane root) throws ExecutionException, InterruptedException {
         // wait for the database setup to complete cleanly before showing any UI.
         // a real app might use a preloader or show a splash screen if this
         // was to take a long time rather than just pausing the JavaFX application thread.
@@ -195,13 +174,7 @@ public class Main extends Application {
                 }
         );
 
-        // try to find vbox layout
-        for (int i = 0; i < root.getChildren().size(); i++) {
-            String id = root.getChildren().get(i).getId();
-            if (id != null && id.equalsIgnoreCase("layout")) {
-                layout = (VBox) root.getChildren().get(i);
-            }
-        }
+        layout = getVBox(root, "layout");
         layout.setStyle("-fx-background-color: cornsilk; -fx-padding: 15;");
         layout.getChildren().setAll(new HBox(10, fetchNames, clearNameList, databaseActivityIndicator), listView);
         layout.setPrefHeight(100);
@@ -209,6 +182,7 @@ public class Main extends Application {
 
     /**
      * find in the FXML tree the VBox. @FXML is not done at this stage
+     *
      * @param root
      * @param name
      * @return

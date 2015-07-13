@@ -1,34 +1,18 @@
 package sample;
 
-import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Task;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.logging.Logger;
 
 /**
  * Created by metairie on 10-Jul-15.
  */
-public class FetchNames {
+public class FetchNames extends Task<ObservableList<String>> {
     private static final Logger LOG = Logger.getLogger(FetchNames.class.getName());
 
-    public static ObservableList<String> fetch() throws SQLException, InterruptedException {
-        Thread.sleep(1000);
-        LOG.info("Fetching names from database");
-        ObservableList<String> names = FXCollections.observableArrayList();
-        Statement st = null;
-        try {
-            st = ConnectDB.getConnection().createStatement();
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-        ResultSet rs = st.executeQuery("select name from category");
-        while (rs.next()) {
-            names.add(rs.getString("name"));
-        }
-        LOG.info("Found " + names.size() + " names");
-        return names;
+    @Override
+    protected ObservableList<String> call() throws Exception {
+        return ConnectDB.fetch();
     }
 }
