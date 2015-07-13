@@ -22,11 +22,9 @@
     <VBox fx:id="layoutCallableFuture" GridPane.columnIndex="2" GridPane.hgrow="ALWAYS" GridPane.rowIndex="2"
           GridPane.vgrow="ALWAYS"/>
 
-    <!-- Future and Callback +X+ blocking thread UI -->
-    <Label text="Poll Take" GridPane.columnIndex="1" GridPane.hgrow="ALWAYS" GridPane.rowIndex="3"
-           GridPane.vgrow="ALWAYS"/>
-    <VBox fx:id="layoutPollTake" GridPane.columnIndex="1" GridPane.hgrow="ALWAYS" GridPane.rowIndex="4"
-          GridPane.vgrow="ALWAYS"/>
+    <!-- CompletableFuture and Callback +X+ blocking thread UI -->
+    <Label text="Completable Future - thread UI blocked" GridPane.columnIndex="1" GridPane.hgrow="ALWAYS" GridPane.rowIndex="3" GridPane.vgrow="ALWAYS" />
+    <VBox fx:id="layoutPollTake" GridPane.columnIndex="1" GridPane.hgrow="ALWAYS" GridPane.rowIndex="4" GridPane.vgrow="ALWAYS" />
 
     <columnConstraints>
         <ColumnConstraints maxWidth="216.0" minWidth="10.0" prefWidth="47.0"/>

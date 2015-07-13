@@ -14,7 +14,8 @@ import java.util.logging.Logger;
 public class FetchNames {
     private static final Logger LOG = Logger.getLogger(FetchNames.class.getName());
 
-    public static ObservableList<String> fetch() throws SQLException {
+    public static ObservableList<String> fetch() throws SQLException, InterruptedException {
+        Thread.sleep(1000);
         LOG.info("Fetching names from database");
         ObservableList<String> names = FXCollections.observableArrayList();
         Statement st = null;

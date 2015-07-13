@@ -89,19 +89,18 @@ public class Main extends Application {
         final Button fetchNames = new Button("Fetch names Callable");
         fetchNames.setOnAction(event -> {
                     CompletionService<ObservableList<String>> completionService = new ExecutorCompletionService<>(databaseExecutor);
-                    // http://markusjais.com/understanding-java-util-concurrent-completionservice/
-//                    ObservableList<Callable<String>> callables =
-                    completionService.submit(() -> FetchNames.fetch());
+                    Future<ObservableList<String>> submit = completionService.submit(() -> FetchNames.fetch());
+                    try {
+                        listView.setItems(submit.get());
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    } catch (ExecutionException e) {
+                        e.printStackTrace();
+                    }
                 }
         );
 
-        // try to find vbox layout
-        for (int i = 0; i < root.getChildren().size(); i++) {
-            String id = root.getChildren().get(i).getId();
-            if (id != null && id.equalsIgnoreCase("layoutPollTake")) {
-                layoutPollTake = (VBox) root.getChildren().get(i);
-            }
-        }
+        layoutPollTake = getVBox(root, "layoutPollTake");
         layoutPollTake.setStyle("-fx-background-color: lightskyblue; -fx-padding: 15;");
         layoutPollTake.getChildren().setAll(new HBox(10, fetchNames, clearNameList, databaseActivityIndicator), listView);
         layoutPollTake.setPrefHeight(100);
@@ -208,5 +207,23 @@ public class Main extends Application {
         layout.setPrefHeight(100);
     }
 
+    /**
+     * find in the FXML tree the VBox. @FXML is not done at this stage
+     * @param root
+     * @param name
+     * @return
+     */
+    private VBox getVBox(GridPane root, String name) {
+        // try to find vbox layout
+        VBox children = new VBox();
+        for (int i = 0; i < root.getChildren().size(); i++) {
+            String id = root.getChildren().get(i).getId();
+            if (id != null && id.equalsIgnoreCase(name)) {
+                children = (VBox) root.getChildren().get(i);
+                break;
+            }
+        }
+        return children;
+    }
 
 }
