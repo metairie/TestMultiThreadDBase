@@ -15,8 +15,8 @@ public class ConnectDB {
     public static Connection getConnection() throws ClassNotFoundException, SQLException {
         LOG.info("Getting a database connection");
         Class.forName("com.mysql.jdbc.Driver");
-        return DriverManager.getConnection("jdbc:mysql://localhost:3306/neos", "root", "eurovision");
-//        return DriverManager.getConnection("jdbc:mysql://db4free.net:3306/metairie", "rootmetairie", "eurovision");
+//        return DriverManager.getConnection("jdbc:mysql://localhost:3306/neos", "root", "eurovision");
+        return DriverManager.getConnection("jdbc:mysql://db4free.net:3306/metairie", "rootmetairie", "eurovision");
     }
 
     public static ObservableList<String> fetch() {
@@ -26,7 +26,7 @@ public class ConnectDB {
         try {
             con = ConnectDB.getConnection();
             Statement st = con.createStatement();
-            ResultSet rs = st.executeQuery("select name from City LIMIT 500");
+            ResultSet rs = st.executeQuery("select name from city LIMIT 500");
             while (rs.next()) {
                 names.add(rs.getString("name"));
             }
